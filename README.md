@@ -16,7 +16,7 @@ It uses custom shaders to simulate day/night transitions, city lights, and atmos
 Since this package is not yet published to npm, you can install it directly from GitHub:
 
 ```bash
-npm install github:kairemix/react-digital-earth three @react-three/fiber @react-three/drei
+npm install github:KairiGit/react-digital-earth three @react-three/fiber @react-three/drei
 ```
 
 ### Local Development
