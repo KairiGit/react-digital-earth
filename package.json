@@ -1,24 +1,38 @@
 {
     "name": "react-digital-earth",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "description": "A realistic, real-time digital twin Earth component for React Three Fiber.",
     "main": "dist/index.js",
     "module": "dist/index.esm.js",
     "types": "dist/index.d.ts",
     "scripts": {
         "build": "tsc",
-        "prepare": "npm run build"
+        "prepare": "npm run build",
+        "test": "jest",
+        "test:watch": "jest --watch",
+        "test:coverage": "jest --coverage"
     },
     "peerDependencies": {
-        "react": ">=18.0.0",
-        "three": ">=0.160.0",
+        "@react-three/drei": ">=9.0.0",
         "@react-three/fiber": ">=8.0.0",
-        "@react-three/drei": ">=9.0.0"
+        "react": ">=18.0.0",
+        "three": ">=0.160.0"
     },
     "devDependencies": {
-        "typescript": "^5.0.0",
+        "@react-three/fiber": "^8.15.0",
+        "@react-three/test-renderer": "^8.2.0",
+        "@testing-library/jest-dom": "^6.9.1",
+        "@testing-library/react": "^14.0.0",
+        "@types/jest": "^29.5.0",
         "@types/react": "^18.0.0",
-        "@types/three": "^0.160.0"
+        "@types/three": "^0.160.0",
+        "jest": "^29.7.0",
+        "jest-environment-jsdom": "^29.7.0",
+        "react": "^18.2.0",
+        "react-dom": "^18.2.0",
+        "three": "^0.160.0",
+        "ts-jest": "^29.1.0",
+        "typescript": "^5.0.0"
     },
     "keywords": [
         "react",
@@ -26,8 +40,20 @@
         "r3f",
         "earth",
         "digital-twin",
-        "shader"
+        "shader",
+        "3d",
+        "webgl",
+        "globe",
+        "visualization"
     ],
     "author": "kairemix",
-    "license": "MIT"
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/KairiGit/react-digital-earth.git"
+    },
+    "bugs": {
+        "url": "https://github.com/KairiGit/react-digital-earth/issues"
+    },
+    "homepage": "https://github.com/KairiGit/react-digital-earth#readme"
 }
