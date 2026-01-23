@@ -15,6 +15,34 @@ export interface DigitalEarthProps {
     sunDirection?: [number, number, number];
     /** Whether to auto-rotate the earth. Default: true */
     autoRotate?: boolean;
+
+    // Light & Brightness
+    /** Intensity of city lights on the night side. Default: 1.5 */
+    nightLightIntensity?: number;
+    /** Range for day/night blending smoothstep. Default: [-0.5, 0.5] */
+    dayNightBlendRange?: [number, number];
+    /** Range for twilight transition (city lights fade). Default: [-0.1, 0.0] */
+    twilightRange?: [number, number];
+
+    // Atmosphere
+    /** Overall atmosphere intensity. Default: 0.6 */
+    atmosphereIntensity?: number;
+    /** Atmosphere color as RGB values (0-1). Default: [0.4, 0.6, 1.0] */
+    atmosphereColor?: [number, number, number];
+    /** Power for Fresnel effect (higher = sharper edge glow). Default: 3.0 */
+    atmospherePower?: number;
+    /** Boost factor for atmosphere on the day side. Default: 0.5 */
+    dayAtmosphereBoost?: number;
+
+    // Astronomical
+    /** Sun elevation angle (Y component). Default: 0.2 */
+    sunElevation?: number;
+    /** Time offset in hours from UTC. Default: 0 */
+    timeOffset?: number;
+
+    // Geometry
+    /** Number of segments for sphere geometry (higher = smoother). Default: 64 */
+    segments?: number;
 }
 
 // Vertex Shader
@@ -37,6 +65,13 @@ const fragmentShader = `
 uniform sampler2D dayTexture;
 uniform sampler2D nightTexture;
 uniform vec3 sunDirection;
+uniform float nightLightIntensity;
+uniform vec2 dayNightBlendRange;
+uniform vec2 twilightRange;
+uniform float atmosphereIntensity;
+uniform vec3 atmosphereColor;
+uniform float atmospherePower;
+uniform float dayAtmosphereBoost;
 
 varying vec2 vUv;
 varying vec3 vNormal;
@@ -54,25 +89,24 @@ void main() {
     float sunOrientation = dot(normal, sunDir);
     
     // Smooth blending between day and night
-    float dayMix = smoothstep(-0.5, 0.5, sunOrientation);
+    float dayMix = smoothstep(dayNightBlendRange.x, dayNightBlendRange.y, sunOrientation);
 
     // Night lights logic: mask out lights on the day side
-    float nightMask = 1.0 - smoothstep(-0.1, 0.0, sunOrientation);
-    vec3 finalNightColor = nightColor * 1.5 * nightMask;
+    float nightMask = 1.0 - smoothstep(twilightRange.x, twilightRange.y, sunOrientation);
+    vec3 finalNightColor = nightColor * nightLightIntensity * nightMask;
 
     // Mix day and night
     vec3 earthColor = mix(finalNightColor, dayColor, dayMix);
 
     // Atmosphere Effect (Fresnel)
     float rim = 1.0 - dot(viewDir, normal);
-    rim = pow(rim, 3.0);
-    vec3 atmosphereColor = vec3(0.4, 0.6, 1.0);
+    rim = pow(rim, atmospherePower);
     
     // Atmosphere intensity based on sun direction (brighter on day side)
-    float intensityFactor = 0.5 + 0.5 * dayMix;
-    float atmosphereIntensity = rim * 0.6 * intensityFactor;
+    float intensityFactor = dayAtmosphereBoost + (1.0 - dayAtmosphereBoost) * dayMix;
+    float finalAtmosphereIntensity = rim * atmosphereIntensity * intensityFactor;
     
-    earthColor += atmosphereColor * atmosphereIntensity;
+    earthColor += atmosphereColor * finalAtmosphereIntensity;
 
     gl_FragColor = vec4(earthColor, 1.0);
 }
@@ -85,6 +119,20 @@ export const DigitalEarth = ({
     rotationSpeed = 0.001,
     sunDirection,
     autoRotate = true,
+    // Light & Brightness
+    nightLightIntensity = 1.5,
+    dayNightBlendRange = [-0.5, 0.5],
+    twilightRange = [-0.1, 0.0],
+    // Atmosphere
+    atmosphereIntensity = 0.6,
+    atmosphereColor = [0.4, 0.6, 1.0],
+    atmospherePower = 3.0,
+    dayAtmosphereBoost = 0.5,
+    // Astronomical
+    sunElevation = 0.2,
+    timeOffset = 0,
+    // Geometry
+    segments = 64,
 }: DigitalEarthProps) => {
     const meshRef = useRef<THREE.Mesh>(null);
     const [day, night] = useLoader(THREE.TextureLoader, [dayTexture, nightTexture]);
@@ -93,7 +141,14 @@ export const DigitalEarth = ({
         dayTexture: { value: day },
         nightTexture: { value: night },
         sunDirection: { value: new THREE.Vector3(1.0, 0.0, 0.0) },
-    }), [day, night]);
+        nightLightIntensity: { value: nightLightIntensity },
+        dayNightBlendRange: { value: new THREE.Vector2(dayNightBlendRange[0], dayNightBlendRange[1]) },
+        twilightRange: { value: new THREE.Vector2(twilightRange[0], twilightRange[1]) },
+        atmosphereIntensity: { value: atmosphereIntensity },
+        atmosphereColor: { value: new THREE.Vector3(atmosphereColor[0], atmosphereColor[1], atmosphereColor[2]) },
+        atmospherePower: { value: atmospherePower },
+        dayAtmosphereBoost: { value: dayAtmosphereBoost },
+    }), [day, night, nightLightIntensity, dayNightBlendRange, twilightRange, atmosphereIntensity, atmosphereColor, atmospherePower, dayAtmosphereBoost]);
 
     useFrame((state) => {
         if (!meshRef.current) return;
@@ -110,8 +165,8 @@ export const DigitalEarth = ({
         } else {
             // Real-time calculation
             const now = new Date();
-            // Calculate UTC hours (decimal)
-            const utcHours = now.getUTCHours() + now.getUTCMinutes() / 60;
+            // Calculate UTC hours (decimal) with time offset
+            const utcHours = now.getUTCHours() + now.getUTCMinutes() / 60 + timeOffset;
 
             // Earth rotates 15 degrees per hour.
             // We need to calculate the sun's longitude relative to the earth's rotation.
@@ -119,29 +174,12 @@ export const DigitalEarth = ({
             const offset = Math.PI / 2;
             const sunLong = -(utcHours - 12) * 15 * (Math.PI / 180) + offset;
 
-            // Adjust for current earth rotation to keep sun fixed relative to the viewer/stars
-            // or relative to the earth surface? 
-            // In this shader, sunDirection is in World Space.
-            // If the mesh rotates, the normal rotates with it.
-            // So we need the sun position in World Space.
-
-            // Actually, for a "Digital Twin" where we want to see "current time at texture coordinate",
-            // we usually rotate the earth mesh to match the current time, OR we rotate the sun around it.
-            // Here, we are rotating the mesh (autoRotate).
-            // To simulate "real time", the relationship between texture UV and Sun Vector must match reality.
-
-            // Simplified approach:
-            // The sun stays relatively fixed in the sky (let's say +Z or whatever).
-            // The earth rotates.
-            // But we want to match specific UTC time.
-
-            // Let's stick to the logic that worked in the blog post:
             // The sun angle `theta` depends on the time AND the current rotation of the mesh.
             const theta = sunLong + meshRef.current.rotation.y;
 
             const sunDir = new THREE.Vector3(
                 Math.sin(theta),
-                0.2, // Slight tilt
+                sunElevation,
                 Math.cos(theta)
             ).normalize();
 
@@ -151,7 +189,7 @@ export const DigitalEarth = ({
 
     return (
         <mesh ref={meshRef}>
-            <sphereGeometry args={[size, 64, 64]} />
+            <sphereGeometry args={[size, segments, segments]} />
             <shaderMaterial
                 vertexShader={vertexShader}
                 fragmentShader={fragmentShader}
